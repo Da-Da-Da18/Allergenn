@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Сканер аллергенов</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        input, button { padding: 10px; font-size: 16px; margin: 10px 0; }
+        #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .danger { color: red; font-weight: bold; }
+        .safe { color: green; font-weight: bold; }
+        img { border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <h1>🔍 Проверка состава продукта</h1>
+    
+    <div>
+        <input type="text" 
+               id="barcode" 
+               placeholder="Введите штрихкод (например: 4607092074502)"
+               style="width: 300px;">
+        <button onclick="checkProduct()">Проверить</button>
+    </div>
+    
+    <div id="result">Введите штрихкод и нажмите проверить</div>
+    
+    <script>
+    // Список аллергенов (добавил немного вариантов написания)
+    const ALLERGENS = [
+        'молоко', 'лактоза', 'казеин', 'молочный', 'сливки', 'сыворотка',
+        'орех', 'арахис', 'миндаль', 'грецкий', 'фундук',
+        'глютен', 'пшеница', 'рожь', 'ячмень', 'мука пшеничная',
+        'яйцо', 'яичный', 'белок', 'меланж',
+        'соя', 'соевый', 'лецитин соевый', 
+        'рыба', 'ракообразные',
+        'горчица', 'кунжут', 'сельдерей'
+    ];
+    
+    async function checkProduct() {
+        const barcode = document.getElementById('barcode').value.trim();
+        const resultDiv = document.getElementById('result');
+        
+        if (!barcode) {
+            resultDiv.innerHTML = '<p class="danger">⚠️ Введите штрихкод!</p>';
+            return;
+        }
+        
+        resultDiv.innerHTML = '<p>🔎 Ищем информацию...</p>';
+        
+        try {
+            // 1. ИСПРАВЛЕНИЕ: Добавлены обратные кавычки ` вокруг URL
+            const response = await fetch(
+                `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
+            );
+            const data = await response.json();
+            
+            if (data.status === 1 && data.product) {
+                const product = data.product;
+                // Берем текст ингредиентов, если его нет — пустую строку
+                const ingredients = product.ingredients_text || '';
+                const ingredientsLower = ingredients.toLowerCase();
+                
+                // Проверяем аллергены
+                const foundAllergens = ALLERGENS.filter(
+                    allergen => ingredientsLower.includes(allergen)
+                );
+                
+                // 2. ИСПРАВЛЕНИЕ: Добавлены обратные кавычки ` для HTML шаблона
+                let html = `
+                    <h3>${product.product_name || 'Продукт без названия'}</h3>
+                    <p><strong>Бренд:</strong> ${product.brands || 'Не указан'}</p>
+                    <p><strong>Состав:</strong> ${ingredients || 'Нет данных о составе'}</p>
+                    <hr>
+                `;
+                
+                if (foundAllergens.length > 0) {
+                    // Здесь тоже нужны обратные кавычки
+                    html += `
+                        <p class="danger">⚠️ ВНИМАНИЕ! Обнаружены аллергены:</p>
+                        <ul>
+                            ${foundAllergens.map(a => `<li>${a}</li>`).join('')}
+                        </ul>
+                    `;
+                } else {
+                    if(ingredients === '') {
+                         html += `<p class="danger">❓ Нет данных о составе. Невозможно проверить аллергены.</p>`;
+                    } else {
+                         html += `<p class="safe">✅ Указанные аллергены в тексте не найдены</p>`;
+                    }
+                }
+                
+                if (product.image_url) {
+                    html += `<img src="${product.image_url}" style="max-width: 200px; margin-top: 10px;">`;
+                }
+                
+                resultDiv.innerHTML = html;
+
+            } else {
+                // И здесь обратные кавычки
+                resultDiv.innerHTML = `
+                    <p class="danger">Товар не найден в базе Open Food Facts</p>
+                    <p>Попробуйте другой штрихкод.</p>
+                `;
+            }
+        } catch (error) {
+            console.error(error);
+            resultDiv.innerHTML = `<p class="danger">Ошибка соединения: ${error.message}</p>`;
+        }
+    }
+    </script>
+</body>
+</html>
